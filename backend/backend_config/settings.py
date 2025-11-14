@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework.authtoken',
     'corsheaders',
 
     # Mis Apps Locales
@@ -146,14 +147,24 @@ CORS_ALLOW_CREDENTIALS = True
 # -----------------------------------------------------------------------------
 # CONFIGURACIÓN DE DJANGO REST FRAMEWORK (DRF)
 # -----------------------------------------------------------------------------
+# (Al final de settings.py)
+
+# -----------------------------------------------------------------------------
+# CONFIGURACIÓN DE DJANGO REST FRAMEWORK (DRF)
+# -----------------------------------------------------------------------------
 REST_FRAMEWORK = {
-    # Usamos SessionAuthentication para habilitar el manejo de CSRF
+    # Define cómo vamos a comprobar quién es el usuario
     'DEFAULT_AUTHENTICATION_CLASSES': [
+        # Autenticación por Token (para nuestra app React)
+        'rest_framework.authentication.TokenAuthentication',
+
+        # Autenticación por Sesión (para el CSRF y el admin de Django)
         'rest_framework.authentication.SessionAuthentication',
     ],
-    # Por ahora, permitimos que cualquiera acceda a la API
-    # (Más adelante, podríamos cambiar esto a IsAuthenticated)
+
+    # Define quién puede acceder a la API
     'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.AllowAny',
+        # ¡"Cierra" la API! Solo usuarios autenticados podrán acceder.
+        'rest_framework.permissions.IsAuthenticated',
     ],
 }

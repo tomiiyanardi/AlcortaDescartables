@@ -1,9 +1,9 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Sum, F
+from django.db.models import Sum, F # <-- 1. ASEGÚRATE DE QUE 'F' ESTÉ IMPORTADO
 from django.utils import timezone
-from datetime import timedelta, datetime # Importación de Datetime
+from datetime import timedelta, datetime
 
 from .models import Producto, Venta, ItemVenta
 from . import services 
@@ -14,6 +14,9 @@ from .serializers import (
     VentaCreateSerializer,
     ItemVentaSerializer
 )
+
+# 2. IMPORTAMOS EL SERIALIZER BÁSICO PARA LA NUEVA ACCIÓN
+from rest_framework import serializers
 
 # Decoradores de CSRF
 from django.utils.decorators import method_decorator
@@ -31,38 +34,59 @@ class ProductoViewSet(viewsets.ModelViewSet):
     def dispatch(self, *args, **kwargs):
         return super().dispatch(*args, **kwargs)
 
+    # --- 3. ¡NUEVA ACCIÓN AÑADIDA! ---
+    # Esta acción crea la URL: /api/productos/<id>/add_stock/
+    @action(detail=True, methods=['post'], url_path='add-stock')
+    def add_stock(self, request, pk=None):
+        """
+        Acción personalizada para añadir stock a un producto.
+        Espera un JSON como: { "cantidad": 10 }
+        """
+        try:
+            cantidad = int(request.data.get('cantidad', 0))
+            if cantidad <= 0:
+                raise ValueError("La cantidad debe ser un número positivo.")
+        except (ValueError, TypeError):
+            return Response(
+                {"detail": "Por favor, provea una 'cantidad' numérica válida."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Usamos self.get_object() para obtener el producto por su 'pk' (ID)
+        producto = self.get_object()
+        
+        # Actualización atómica (segura)
+        # Esto evita problemas si dos personas intentan sumar stock al mismo tiempo
+        producto.stock = F('stock') + cantidad
+        producto.save()
+        
+        # Refrescamos el objeto desde la BBDD para obtener el nuevo valor
+        producto.refresh_from_db()
+        
+        # Devolvemos el producto actualizado
+        serializer = self.get_serializer(producto)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
 # -----------------------------------------------------------------------------
-# ViewSet para Venta (MODIFICADO para usar serializers/servicios)
+# ViewSet para Venta
 # -----------------------------------------------------------------------------
 class VentaViewSet(viewsets.ModelViewSet):
     queryset = Venta.objects.all().order_by('-fecha')
     serializer_class = VentaSerializer
 
-    # --- ¡ESTE ES EL MÉTODO QUE AÑADIMOS EN EL PASO 25! ---
     def get_queryset(self):
-        """
-        Sobrescribe el queryset para filtrar por rango de fechas
-        si se proveen 'start_date' y 'end_date' en la URL.
-        """
-        # Obtenemos el queryset base (todas las ventas)
         queryset = super().get_queryset() 
-        
         start_date_str = self.request.query_params.get('start_date', None)
         end_date_str = self.request.query_params.get('end_date', None)
 
         if start_date_str and end_date_str:
             try:
-                # Convertimos las fechas y filtramos
                 start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
                 end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
-                # Usamos __range para filtrar entre las dos fechas (inclusive)
                 queryset = queryset.filter(fecha__date__range=[start_date, end_date])
             except (ValueError, TypeError):
-                # Si las fechas son inválidas, no filtramos nada
                 pass 
-
         return queryset
-    # -------------------------------------------------------
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -79,9 +103,7 @@ class VentaViewSet(viewsets.ModelViewSet):
             return Response(respuesta_serializer.data, status=status.HTTP_201_CREATED)
         
         except Exception as e:
-            # Captura cualquier error del servicio (ej. stock)
             try:
-                # Intenta obtener el 'detail' si es una ValidationError de DRF
                 detail = e.detail
             except AttributeError:
                 detail = str(e)
@@ -91,20 +113,15 @@ class VentaViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-    # --------------------------------------------
-    # Dashboard (Este es el código actualizado del Dashboard)
-    # --------------------------------------------
     @action(detail=False, methods=['get'], url_path='dashboard-data')
     def dashboard_data(self, request):
         
-        # --- Lógica de Fechas ---
         start_date_str = request.query_params.get('start_date', None)
         end_date_str = request.query_params.get('end_date', None)
 
-        # Determinar el rango de fechas
         if not start_date_str or not end_date_str:
             end_date = timezone.localdate()
-            start_date = end_date - timedelta(days=6) # Últimos 7 días
+            start_date = end_date - timedelta(days=6)
         else:
             try:
                 start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
@@ -112,10 +129,8 @@ class VentaViewSet(viewsets.ModelViewSet):
             except ValueError:
                 return Response({"detail": "Formato de fecha inválido. Usar YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Filtrar las ventas para los KPIs y el gráfico
         ventas_filtradas = Venta.objects.filter(fecha__date__range=[start_date, end_date])
 
-        # --- Cálculos del Gráfico (Ventas por día) ---
         sales_by_day_dict = {}
         delta = end_date - start_date
         for i in range(delta.days + 1):
@@ -131,7 +146,6 @@ class VentaViewSet(viewsets.ModelViewSet):
 
         sales_by_day = [{'date': date, 'total': total} for date, total in sales_by_day_dict.items()]
 
-        # --- CÁLCULOS DE GANANCIA (KPIs del Rango) ---
         total_vendido = 0
         total_costo = 0
         
@@ -144,7 +158,6 @@ class VentaViewSet(viewsets.ModelViewSet):
 
         ganancia_neta = total_vendido - total_costo
 
-        # --- KPIs Históricos (se mantienen) ---
         ventas_totales_historico = Venta.objects.aggregate(total=Sum('total_venta'))['total'] or 0
         productos_bajo_stock = Producto.objects.filter(stock__lte=F('stock_minimo')).order_by('nombre')
         productos_bajo_stock_serializer = ProductoSerializer(productos_bajo_stock, many=True)
