@@ -1,0 +1,13 @@
+# Archivos de Secretos
+# Ignora CUALQUIER archivo .env en CUALQUIER carpeta
+*.env
+
+# Entorno de Python (Backend)
+venv/
+__pycache__/
+db.sqlite3
+
+# Entorno de Node.js (Frontend)
+node_modules/
+dist/
+.vite/
