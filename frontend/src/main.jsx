@@ -1,9 +1,8 @@
 import React from "react";
+import "./index.css";
 import ReactDOM from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 
-// Asegúrate de que esta importación esté aquí
-import "./index.css";
 
 // Importamos el Layout y las páginas
 import Layout from "./components/Layout";

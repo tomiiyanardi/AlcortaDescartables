@@ -139,3 +139,21 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+
+# AÑADE ESTA LÍNEA (permite que el frontend reciba la cookie CSRF)
+CORS_ALLOW_CREDENTIALS = True
+
+# -----------------------------------------------------------------------------
+# CONFIGURACIÓN DE DJANGO REST FRAMEWORK (DRF)
+# -----------------------------------------------------------------------------
+REST_FRAMEWORK = {
+    # Usamos SessionAuthentication para habilitar el manejo de CSRF
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    # Por ahora, permitimos que cualquiera acceda a la API
+    # (Más adelante, podríamos cambiar esto a IsAuthenticated)
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.AllowAny',
+    ],
+}
