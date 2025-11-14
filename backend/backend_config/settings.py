@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 import os
 from dotenv import load_dotenv
 from pathlib import Path
+import dj_database_url 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -26,9 +27,13 @@ load_dotenv(os.path.join(BASE_DIR, '.env'))
 SECRET_KEY = os.getenv('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = 'RENDER' not in os.environ
 
 ALLOWED_HOSTS = []
+# Añadimos los hosts permitidos para producción
+RENDER_EXTERNAL_HOSTNAME = os.environ.get('RENDER_EXTERNAL_HOSTNAME')
+if RENDER_EXTERNAL_HOSTNAME:
+    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 
 
 # Application definition
@@ -84,15 +89,17 @@ WSGI_APPLICATION = 'backend_config.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME'),
-        'USER': os.getenv('DB_USER'),
-        'PASSWORD': os.getenv('DB_PASSWORD'),
-        'HOST': os.getenv('DB_HOST'),
-        'PORT': os.getenv('DB_PORT'),
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
 
+# Esta línea lee la URL de la BBDD de Render (DATABASE_URL)
+# y la configura automáticamente para Django.
+# Si no está en Render, usará la BBDD local de sqlite3 de arriba.
+db_from_env = dj_database_url.config(conn_max_age=500, default=None)
+if db_from_env:
+    DATABASES['default'].update(db_from_env)
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
@@ -152,19 +159,24 @@ CORS_ALLOW_CREDENTIALS = True
 # -----------------------------------------------------------------------------
 # CONFIGURACIÓN DE DJANGO REST FRAMEWORK (DRF)
 # -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# CONFIGURACIÓN DE DJANGO REST FRAMEWORK (DRF)
+# -----------------------------------------------------------------------------
 REST_FRAMEWORK = {
-    # Define cómo vamos a comprobar quién es el usuario
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        # Autenticación por Token (para nuestra app React)
         'rest_framework.authentication.TokenAuthentication',
-
-        # Autenticación por Sesión (para el CSRF y el admin de Django)
         'rest_framework.authentication.SessionAuthentication',
     ],
-
-    # Define quién puede acceder a la API
     'DEFAULT_PERMISSION_CLASSES': [
-        # ¡"Cierra" la API! Solo usuarios autenticados podrán acceder.
         'rest_framework.permissions.IsAuthenticated',
     ],
+    # --- AÑADE ESTO ---
+    # Deshabilita la API navegable en producción (más seguro)
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ]
 }
+
+# ... pero si estamos en DEBUG (local), SÍ la mostramos:
+if DEBUG:
+    REST_FRAMEWORK['DEFAULT_RENDERER_CLASSES'].append('rest_framework.renderers.BrowsableAPIRenderer')
