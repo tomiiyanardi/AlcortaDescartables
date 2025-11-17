@@ -2,14 +2,14 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 
-// Importamos el CSS global
+// ¡Esta es la importación clave para cargar los estilos de Tailwind!
 import "./index.css";
 
-// --- 1. Importamos los nuevos componentes de autenticación ---
+// --- Componentes de autenticación ---
 import LoginPage from "./pages/LoginPage.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 
-// --- 2. Importamos el Layout y las páginas de la app ---
+// --- Layout y Páginas ---
 import Layout from "./components/Layout.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
 import ProductosPage from "./pages/ProductosPage.jsx";
@@ -17,21 +17,18 @@ import RegistrarVentaPage from "./pages/RegistrarVentaPage.jsx";
 import HistorialVentasPage from "./pages/HistorialVentasPage.jsx";
 import RegistrarCompraPage from "./pages/RegistrarCompraPage.jsx";
 
-// --- 3. Definimos la nueva estructura de rutas ---
+// --- Estructura de Rutas ---
 const router = createBrowserRouter([
   {
-    // --- Ruta Pública: /login ---
-    // Esta es la única ruta que NO está protegida
+    // Ruta Pública
     path: "/login",
     element: <LoginPage />,
   },
   {
-    // --- Rutas Protegidas ---
-    // Usamos nuestro "Guardián" (ProtectedRoute)
+    // Rutas Protegidas
     element: <ProtectedRoute />,
     children: [
       {
-        // La ruta raíz '/' y todas sus hijas usarán el Layout
         path: "/",
         element: <Layout />,
         children: [
