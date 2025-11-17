@@ -20,7 +20,7 @@ function getCookie(name) {
 // ------------------------------------------
 
 const apiClient = axios.create({
-  baseURL: "https://alcorta-backend.onrender.com",
+  baseURL: "https://alcorta-backend.onrender.com/api/",
   headers: {
     "Content-Type": "application/json",
   },
