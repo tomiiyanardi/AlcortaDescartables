@@ -146,6 +146,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "https://alcorta-descartables.vercel.app",
+]
+
+# AÑADE TAMBIÉN ESTA NUEVA SECCIÓN
+CORS_TRUSTED_ORIGINS = [
+    "httpsS://alcorta-descartables.vercel.app",
 ]
 
 # AÑADE ESTA LÍNEA (permite que el frontend reciba la cookie CSRF)

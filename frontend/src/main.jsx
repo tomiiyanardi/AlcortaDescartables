@@ -2,13 +2,14 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 
+// Importamos el CSS global
 import "./index.css";
 
-// --- 1. Importamos los nuevos componentes ---
+// --- 1. Importamos los nuevos componentes de autenticación ---
 import LoginPage from "./pages/LoginPage.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 
-// Importamos el Layout y las páginas de la app
+// --- 2. Importamos el Layout y las páginas de la app ---
 import Layout from "./components/Layout.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
 import ProductosPage from "./pages/ProductosPage.jsx";
@@ -16,7 +17,7 @@ import RegistrarVentaPage from "./pages/RegistrarVentaPage.jsx";
 import HistorialVentasPage from "./pages/HistorialVentasPage.jsx";
 import RegistrarCompraPage from "./pages/RegistrarCompraPage.jsx";
 
-// --- 2. Definimos la nueva estructura de rutas ---
+// --- 3. Definimos la nueva estructura de rutas ---
 const router = createBrowserRouter([
   {
     // --- Ruta Pública: /login ---
