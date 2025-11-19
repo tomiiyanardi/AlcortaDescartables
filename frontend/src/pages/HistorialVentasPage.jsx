@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import apiClient from "../api";
 import Input from "../components/ui/Input";
 import EditarVentaModal from "../components/EditarVentaModal"; 
-import DeleteConfirmationModal from "../components/ui/DeleteConfirmationModal"; // Nuevo componente de UI
 
 // --- Íconos SVG ---
 const PencilIcon = () => (
