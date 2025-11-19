@@ -66,6 +66,7 @@ class VentaViewSet(viewsets.ModelViewSet):
 
     # CAMBIO: Habilitamos VentaCreateSerializer para Edición (PUT/PATCH)
     def get_serializer_class(self):
+        # Usamos el serializer de "escritura" para crear Y actualizar
         if self.action in ['create', 'update', 'partial_update']:
             return VentaCreateSerializer
         return VentaSerializer

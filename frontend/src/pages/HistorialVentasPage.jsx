@@ -1,20 +1,23 @@
-// frontend/src/pages/HistorialVentasPage.jsx
 import { useState, useEffect } from "react";
 import apiClient from "../api";
 import Input from "../components/ui/Input";
-import EditarVentaModal from "../components/EditarVentaModal"; 
+
+// --- IMPORTACIONES CORREGIDAS ---
+// Usamos el nombre correcto del archivo que creamos antes
+import VentaEditModal from "../components/VentaEditModal"; 
+import DeleteConfirmationModal from "../components/ui/DeleteConfirmationModal"; 
 
 // --- Íconos SVG ---
 const PencilIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-        <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-    </svg>
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+    <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+  </svg>
 );
 
 const TrashIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-red-600 hover:text-red-800">
-        <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0-.97-4.277M9 7.114V5.572m4.102.162L17 4m0 0l-4.102 2.162M12 4v16M8.7 10.5h6.6m-6.6 0-1.8 7.2M17 18.75V19a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-.25" />
-    </svg>
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-red-600 hover:text-red-800">
+    <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0-.97-4.277M9 7.114V5.572m4.102.162L17 4m0 0l-4.102 2.162M12 4v16M8.7 10.5h6.6m-6.6 0-1.8 7.2M17 18.75V19a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-.25" />
+  </svg>
 );
 // ------------------------------------------------
 
@@ -197,7 +200,7 @@ function HistorialVentasPage() {
                     <ul className="list-disc list-inside space-y-1">
                       {venta.items.map((item) => (
                         <li key={item.id}>
-                          <span className="font-semibold">{item.cantidad}x</span> {item.producto_nombre} 
+                          <span className="font-semibold">{parseFloat(item.cantidad)}x</span> {item.producto_nombre} 
                           <span className="text-gray-600"> (@ ${parseFloat(item.precio_en_el_momento).toFixed(2)})</span>
                         </li>
                       ))}
@@ -207,9 +210,8 @@ function HistorialVentasPage() {
                     ${parseFloat(venta.total_venta).toFixed(2)}
                   </td>
                   
-                  {/* --- BOTONES DE ACCIÓN (EDITAR Y ELIMINAR) --- */}
+                  {/* --- BOTONES DE ACCIÓN --- */}
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium flex space-x-2 items-center">
-                    {/* Botón Editar */}
                     <button 
                         onClick={() => handleEditarVenta(venta)} 
                         className="text-blue-600 hover:text-blue-900 transition-colors"
@@ -217,7 +219,6 @@ function HistorialVentasPage() {
                     >
                         <PencilIcon />
                     </button>
-                    {/* Botón Eliminar */}
                     <button 
                         onClick={() => handleDeleteClick(venta)} 
                         title="Eliminar Venta"
@@ -225,7 +226,6 @@ function HistorialVentasPage() {
                         <TrashIcon />
                     </button>
                   </td>
-                  {/* ----------------------------------------------- */}
                 </tr>
               ))
             )}
@@ -235,12 +235,14 @@ function HistorialVentasPage() {
       </div>
       
       {/* --- MODALES --- */}
-      <EditarVentaModal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        venta={ventaSeleccionada}
-        onSaveSuccess={handleEditSuccess}
-      />
+      {isEditModalOpen && (
+        <VentaEditModal
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          venta={ventaSeleccionada}
+          onSaveSuccess={handleEditSuccess}
+        />
+      )}
       
       <DeleteConfirmationModal
         isOpen={isDeleteModalOpen}

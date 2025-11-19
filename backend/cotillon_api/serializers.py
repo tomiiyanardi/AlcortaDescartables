@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from .models import Producto, Venta, ItemVenta
 from decimal import Decimal
+from django.db import transaction
 from . import services # Necesario para llamar a la lógica de actualización
 
 # -----------------------------------------------------------------------------
@@ -55,16 +56,58 @@ class VentaCreateSerializer(serializers.Serializer):
     items = VentaCreateItemSerializer(many=True)
 
     def validate_items(self, items_data):
-        # Validación: no permitir venta sin items
         if not items_data:
-             raise serializers.ValidationError("La venta debe tener al menos un item.")
+            raise serializers.ValidationError("La venta debe tener al menos un item.")
+        producto_ids = [item['producto'].id for item in items_data]
+        if len(producto_ids) != len(set(producto_ids)):
+            raise serializers.ValidationError("No se pueden repetir productos en la misma venta.")
         return items_data
 
-    # MÉTODO PARA CREAR (POST)
-    def create(self, validated_data):
-        venta, _ = services.registrar_venta(validated_data)
-        return venta
-    
-    # MÉTODO PARA ACTUALIZAR (PUT/PATCH)
+    # --- ESTE ES EL MÉTODO NUEVO PARA EDITAR ---
     def update(self, instance, validated_data):
-        return services.actualizar_venta(instance, validated_data)
+        items_data = validated_data.get('items')
+
+        with transaction.atomic():
+            # 1. DEVOLVER STOCK ORIGINAL
+            # Iteramos sobre los items viejos que ya estaban guardados
+            for item_viejo in instance.items.all():
+                producto = item_viejo.producto
+                producto.stock += item_viejo.cantidad # Devolvemos al stock
+                producto.save()
+            
+            # 2. BORRAR ITEMS VIEJOS
+            instance.items.all().delete()
+
+            # 3. CREAR ITEMS NUEVOS Y DESCONTAR STOCK
+            total_venta_nuevo = 0
+            
+            for item_data in items_data:
+                producto = item_data['producto']
+                cantidad = item_data['cantidad']
+                
+                # Verificamos stock (ahora que ya devolvimos lo viejo)
+                if producto.stock < cantidad:
+                    raise serializers.ValidationError(f"Stock insuficiente para {producto.nombre}. Stock actual: {producto.stock}")
+                
+                # Descontamos stock
+                producto.stock -= cantidad
+                producto.save()
+
+                # Guardamos el precio actual
+                precio_momento = producto.precio_venta
+                total_linea = precio_momento * cantidad
+                total_venta_nuevo += total_linea
+
+                # Creamos el nuevo item
+                ItemVenta.objects.create(
+                    venta=instance,
+                    producto=producto,
+                    cantidad=cantidad,
+                    precio_en_el_momento=precio_momento
+                )
+
+            # 4. Actualizar total de la venta
+            instance.total_venta = total_venta_nuevo
+            instance.save()
+
+        return instance
