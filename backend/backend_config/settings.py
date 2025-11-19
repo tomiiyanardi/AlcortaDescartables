@@ -142,11 +142,15 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Configuración de CORS
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.vercel\.app$",
+    r"^https://.*\.netlify\.app$",
+]
+
+# 3. Mantenemos localhost para desarrollo local
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://alcorta-descartables.vercel.app",
 ]
 
 # AÑADE TAMBIÉN ESTA NUEVA SECCIÓN
