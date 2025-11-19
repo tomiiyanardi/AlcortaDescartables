@@ -18,13 +18,13 @@ class ProductoSerializer(serializers.ModelSerializer):
 # Serializer para MOSTRAR un ItemVenta (dentro de una Venta)
 # -----------------------------------------------------------------------------
 class ItemVentaSerializer(serializers.ModelSerializer):
-    # Para mostrar el nombre en lugar de solo el ID
     producto_nombre = serializers.CharField(source='producto.nombre', read_only=True)
 
     class Meta:
         model = ItemVenta
-        fields = ['id', 'producto_nombre', 'cantidad', 'precio_en_el_momento']
-        # No se necesita 'producto' (ID) en la respuesta de lectura
+        # ¡AÑADE 'producto' AQUI! Esto es el ID.
+        fields = ['id', 'producto', 'producto_nombre', 'cantidad', 'precio_en_el_momento'] 
+        read_only_fields = ['precio_en_el_momento']
 
 # -----------------------------------------------------------------------------
 # Serializer para MOSTRAR una Venta (Listado y Detalle)
@@ -71,3 +71,8 @@ class VentaCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError("No se pueden repetir productos en la misma venta.")
         
         return items_data
+    
+    def update(self, instance, validated_data):
+        # Llamamos al servicio que acabamos de crear
+        from . import services
+        return services.actualizar_venta(instance, validated_data)

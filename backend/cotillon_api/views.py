@@ -89,7 +89,8 @@ class VentaViewSet(viewsets.ModelViewSet):
         return queryset
 
     def get_serializer_class(self):
-        if self.action == 'create':
+        # Usamos el serializer de escritura para CREAR y ACTUALIZAR
+        if self.action in ['create', 'update', 'partial_update']:
             return VentaCreateSerializer
         return VentaSerializer
 
