@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import apiClient from "../api";
 import Input from "../components/ui/Input";
-// ¡Importamos el modal que acabamos de crear!
 import ProductoFormModal from "../components/ProductoFormModal";
 
 function RegistrarVentaPage() {
@@ -9,7 +8,7 @@ function RegistrarVentaPage() {
   const [productosDisponibles, setProductosDisponibles] = useState([]);
   const [itemsVenta, setItemsVenta] = useState([]);
   
-  // Estados para el formulario de añadir
+  // Estados para el formulario
   const [productoSeleccionado, setProductoSeleccionado] = useState("");
   const [cantidadSeleccionada, setCantidadSeleccionada] = useState(1);
   
@@ -18,31 +17,29 @@ function RegistrarVentaPage() {
   const [isDropdownVisible, setIsDropdownVisible] = useState(false);
 
   // Estados de mensajes
-  const [error, setError] =useState(null);
+  const [error, setError] = useState(null);
   const [exito, setExito] = useState(null);
 
-  // --- NUEVOS ESTADOS: Para el Modal de Creación Rápida ---
+  // Estados para Modal
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  // Guardará el nombre del producto que se buscó (ej. "Globos Rojos")
   const [modalInitialData, setModalInitialData] = useState({});
 
-  // --- 1. FUNCIÓN PARA CARGAR PRODUCTOS (GET) ---
   const fetchProductos = async () => {
     try {
       const response = await apiClient.get("/productos/");
-      const conStock = response.data.filter(p => p.stock > 0);
+      // Filtramos productos con stock > 0
+      const conStock = response.data.filter(p => parseFloat(p.stock) > 0);
       setProductosDisponibles(conStock);
     } catch (error) {
       console.error("Error al obtener productos:", error);
     }
   };
 
-  // --- 2. useEffect PARA CARGAR PRODUCTOS AL INICIO ---
   useEffect(() => {
     fetchProductos();
   }, []);
 
-  // --- 3. LÓGICA DE BÚSQUEDA Y FILTRADO (Sin cambios) ---
+  // Lógica de filtrado
   const productosFiltrados = productosDisponibles.filter(p =>
     p.nombre.toLowerCase().includes(terminoBusqueda.toLowerCase()) ||
     (p.codigo && p.codigo.toLowerCase().includes(terminoBusqueda.toLowerCase()))
@@ -61,19 +58,20 @@ function RegistrarVentaPage() {
   };
 
   const handleBlur = () => {
-    setTimeout(() => {
-      setIsDropdownVisible(false);
-    }, 150);
+    setTimeout(() => { setIsDropdownVisible(false); }, 150);
   };
 
-  // --- 4. FUNCIÓN PARA AÑADIR ITEM AL CARRITO (Sin cambios) ---
+  // --- AQUÍ ESTABA EL ERROR DE DECIMALES ---
   const handleAddItem = () => {
     if (!productoSeleccionado || cantidadSeleccionada <= 0) {
-      setError("Por favor, busca y selecciona un producto válido de la lista.");
+      setError("Por favor, selecciona un producto y cantidad válida.");
       return;
     }
+    
     const prodId = parseInt(productoSeleccionado);
-    const cant = parseInt(cantidadSeleccionada);
+    // CAMBIO: Usamos parseFloat para permitir decimales (ej. 0.250)
+    const cant = parseFloat(cantidadSeleccionada); 
+
     setError(null);
     const itemExistente = itemsVenta.find((item) => item.producto.id === prodId);
 
@@ -101,28 +99,28 @@ function RegistrarVentaPage() {
     setProductoSeleccionado("");
   };
 
-  // --- 5. FUNCIÓN PARA ENVIAR LA VENTA (Sin cambios) ---
   const handleRegistrarVenta = async () => {
-    // ... (lógica de registro de venta, sin cambios)
     if (itemsVenta.length === 0) {
       setError("No puedes registrar una venta vacía.");
       return;
     }
     setError(null);
     setExito(null);
+    
     const payload = {
       items: itemsVenta.map((item) => ({
         producto: item.producto.id,
         cantidad: item.cantidad,
       })),
     };
+
     try {
       const response = await apiClient.post("/ventas/", payload);
       setExito(`¡Venta #${response.data.id} registrada! Total: $${response.data.total_venta}`);
       setItemsVenta([]);
       fetchProductos();
     } catch (error) {
-      console.error("Error al registrar la venta:", error.response.data);
+      console.error("Error venta:", error.response?.data);
       if (error.response?.data?.detail) {
         setError(`Error: ${error.response.data.detail}`);
       } else {
@@ -131,46 +129,31 @@ function RegistrarVentaPage() {
     }
   };
 
-  // --- 6. Cálculo del Total (Sin cambios) ---
   const totalVenta = itemsVenta.reduce(
     (acc, item) => acc + item.cantidad * item.precio_en_el_momento,
     0
   );
 
-  // --- 7. NUEVAS FUNCIONES: PARA EL MODAL DE CREACIÓN RÁPIDA ---
+  // Funciones del Modal
   const handleAbrirModalCrear = () => {
-    // Pre-rellenamos el formulario con el nombre que el usuario buscó
     setModalInitialData({
-      nombre: terminoBusqueda, // <-- El nombre que buscó
-      codigo: "",
-      precio_costo: "",
-      precio_venta: "",
-      stock: 0,
-      stock_minimo: 0,
+      nombre: terminoBusqueda, codigo: "", precio_costo: "", precio_venta: "", stock: 0, stock_minimo: 0,
     });
     setIsCreateModalOpen(true);
-    setIsDropdownVisible(false); // Cerramos el desplegable de búsqueda
+    setIsDropdownVisible(false);
   };
 
   const handleModalSaveSuccess = (productoGuardado) => {
-    // Cuando el modal guarda con éxito:
-    // 1. Cerramos el modal
     setIsCreateModalOpen(false);
-    
-    // 2. Recargamos la lista de productos (para que aparezca en futuras búsquedas)
     fetchProductos();
-    
-    // 3. ¡Añadimos el nuevo producto al carrito automáticamente!
     setItemsVenta((prevItems) => [
       ...prevItems,
       {
         producto: { id: productoGuardado.id, nombre: productoGuardado.nombre },
-        cantidad: 1, // Por defecto añadimos 1
+        cantidad: 1,
         precio_en_el_momento: productoGuardado.precio_venta,
       },
     ]);
-    
-    // 4. Limpiamos el término de búsqueda
     setTerminoBusqueda("");
   };
 
@@ -182,7 +165,7 @@ function RegistrarVentaPage() {
       {exito && <div className="mb-4 bg-green-100 border border-green-400 text-green-700 p-3 rounded">{exito}</div>}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* Columna Izquierda: Añadir Productos */}
+        {/* Columna Izquierda */}
         <div className="md:col-span-1 bg-white p-6 rounded-lg shadow-md">
           <h2 className="text-xl font-semibold mb-4">1. Añadir Productos</h2>
           
@@ -198,8 +181,6 @@ function RegistrarVentaPage() {
               placeholder="Escribe nombre o código..."
               autoComplete="off"
             />
-            
-            {/* --- Desplegable de Resultados (MODIFICADO) --- */}
             {isDropdownVisible && terminoBusqueda.length > 0 && (
               <div className="absolute z-10 w-full bg-white border border-gray-300 rounded-md mt-1 max-h-60 overflow-y-auto shadow-lg">
                 {productosFiltrados.length > 0 ? (
@@ -211,24 +192,20 @@ function RegistrarVentaPage() {
                     >
                       <p className="font-semibold">{p.nombre}</p>
                       <p className="text-sm text-gray-600">
-                        Código: {p.codigo || 'N/A'} - Stock: {p.stock}
+                        Código: {p.codigo || 'N/A'} - Stock: {parseFloat(p.stock)}
                       </p>
                     </div>
                   ))
                 ) : (
-                  // --- ESTE ES EL NUEVO BOTÓN "CREAR" ---
                   <div 
                     className="p-3 text-gray-500 cursor-pointer hover:bg-green-100"
-                    onMouseDown={handleAbrirModalCrear} // <-- Llama al modal
+                    onMouseDown={handleAbrirModalCrear}
                   >
-                    No se encontró. <span className="font-semibold text-green-600">
-                      Crear producto "{terminoBusqueda}"...
-                    </span>
+                    No se encontró. <span className="font-semibold text-green-600">Crear "{terminoBusqueda}"...</span>
                   </div>
                 )}
               </div>
             )}
-            {/* --- FIN CAMPO DE BÚSQUEDA --- */}
           </div>
 
           <div className="mb-4">
@@ -236,7 +213,8 @@ function RegistrarVentaPage() {
               label="Cantidad"
               id="cantidad"
               type="number"
-              min="1"
+              min="0.001"
+              step="0.001" // CAMBIO: Permitir decimales en el input
               value={cantidadSeleccionada}
               onChange={(e) => setCantidadSeleccionada(e.target.value)}
             />
@@ -250,10 +228,9 @@ function RegistrarVentaPage() {
           </button>
         </div>
 
-        {/* Columna Derecha: Resumen de Venta (Sin cambios) */}
+        {/* Columna Derecha */}
         <div className="md:col-span-2 bg-white p-6 rounded-lg shadow-md">
           <h2 className="text-xl font-semibold mb-4">2. Resumen de Venta</h2>
-          {/* ... (el resto del <table> y resumen de venta no cambia) ... */}
           <div className="mb-4 min-h-[150px]">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -287,9 +264,7 @@ function RegistrarVentaPage() {
               onClick={handleRegistrarVenta}
               disabled={itemsVenta.length === 0}
               className={`w-full text-white p-3 rounded-md font-bold text-lg transition-colors ${
-                itemsVenta.length === 0
-                  ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-green-600 hover:bg-green-700"
+                itemsVenta.length === 0 ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"
               }`}
             >
               Registrar Venta
@@ -298,7 +273,6 @@ function RegistrarVentaPage() {
         </div>
       </div>
 
-      {/* --- RENDERIZAMOS EL MODAL DE CREACIÓN RÁPIDA --- */}
       <ProductoFormModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
