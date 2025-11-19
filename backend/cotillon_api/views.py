@@ -1,9 +1,10 @@
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.db.models import Sum, F # <-- 1. ASEGÚRATE DE QUE 'F' ESTÉ IMPORTADO
+from django.db.models import Sum, F
 from django.utils import timezone
 from datetime import timedelta, datetime
+from django.db import transaction # <-- Importación necesaria para el borrado atómico
 
 from .models import Producto, Venta, ItemVenta
 from . import services 
@@ -15,15 +16,12 @@ from .serializers import (
     ItemVentaSerializer
 )
 
-# 2. IMPORTAMOS EL SERIALIZER BÁSICO PARA LA NUEVA ACCIÓN
-from rest_framework import serializers
-
 # Decoradores de CSRF
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
 
 # -----------------------------------------------------------------------------
-# ViewSet para Producto (CRUD completo)
+# ViewSet para Producto
 # -----------------------------------------------------------------------------
 class ProductoViewSet(viewsets.ModelViewSet):
     queryset = Producto.objects.all().order_by('nombre')
@@ -34,45 +32,43 @@ class ProductoViewSet(viewsets.ModelViewSet):
     def dispatch(self, *args, **kwargs):
         return super().dispatch(*args, **kwargs)
 
-    # --- 3. ¡NUEVA ACCIÓN AÑADIDA! ---
-    # Esta acción crea la URL: /api/productos/<id>/add_stock/
+    # Acción para añadir stock (usado en Registrar Compra)
     @action(detail=True, methods=['post'], url_path='add-stock')
     def add_stock(self, request, pk=None):
-        """
-        Acción personalizada para añadir stock a un producto.
-        Espera un JSON como: { "cantidad": 10 }
-        """
         try:
-            cantidad = int(request.data.get('cantidad', 0))
-            if cantidad <= 0:
-                raise ValueError("La cantidad debe ser un número positivo.")
+            cantidad = request.data.get('cantidad', 0)
+            if not isinstance(cantidad, (int, float, str)) or float(cantidad) <= 0:
+                 raise ValueError("La cantidad debe ser un número positivo.")
+            cantidad = Decimal(str(cantidad))
         except (ValueError, TypeError):
             return Response(
                 {"detail": "Por favor, provea una 'cantidad' numérica válida."},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Usamos self.get_object() para obtener el producto por su 'pk' (ID)
         producto = self.get_object()
         
-        # Actualización atómica (segura)
-        # Esto evita problemas si dos personas intentan sumar stock al mismo tiempo
+        # Actualización atómica
         producto.stock = F('stock') + cantidad
         producto.save()
         
-        # Refrescamos el objeto desde la BBDD para obtener el nuevo valor
         producto.refresh_from_db()
         
-        # Devolvemos el producto actualizado
         serializer = self.get_serializer(producto)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 # -----------------------------------------------------------------------------
-# ViewSet para Venta
+# ViewSet para Venta (con Lógica de Edición y Eliminación)
 # -----------------------------------------------------------------------------
 class VentaViewSet(viewsets.ModelViewSet):
     queryset = Venta.objects.all().order_by('-fecha')
     serializer_class = VentaSerializer
+
+    # CAMBIO: Habilitamos VentaCreateSerializer para Edición (PUT/PATCH)
+    def get_serializer_class(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            return VentaCreateSerializer
+        return VentaSerializer
 
     def get_queryset(self):
         queryset = super().get_queryset() 
@@ -88,18 +84,12 @@ class VentaViewSet(viewsets.ModelViewSet):
                 pass 
         return queryset
 
-    def get_serializer_class(self):
-        # Usamos el serializer de escritura para CREAR y ACTUALIZAR
-        if self.action in ['create', 'update', 'partial_update']:
-            return VentaCreateSerializer
-        return VentaSerializer
-
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
         try:
-            venta_creada = services.registrar_venta(serializer.validated_data)
+            venta_creada, _ = services.registrar_venta(serializer.validated_data)
             respuesta_serializer = VentaSerializer(venta_creada)
             return Response(respuesta_serializer.data, status=status.HTTP_201_CREATED)
         
@@ -113,6 +103,22 @@ class VentaViewSet(viewsets.ModelViewSet):
                 {"detail": detail}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+    # --- NUEVO MÉTODO: Eliminar Venta (DELETE) ---
+    @transaction.atomic
+    def perform_destroy(self, instance):
+        """Cancela la venta y revierte el stock de todos los productos."""
+        
+        # 1. Revertir Stock
+        for item in instance.items.all():
+            producto = item.producto
+            producto.stock += item.cantidad 
+            producto.save()
+
+        # 2. Eliminar la venta
+        instance.delete()
+    # ---------------------------------------------
+
 
     @action(detail=False, methods=['get'], url_path='dashboard-data')
     def dashboard_data(self, request):
