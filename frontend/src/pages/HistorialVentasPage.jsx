@@ -15,7 +15,7 @@ const PencilIcon = () => (
 );
 
 const TrashIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-red-600 hover:text-red-800">
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
     <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0-.97-4.277M9 7.114V5.572m4.102.162L17 4m0 0l-4.102 2.162M12 4v16M8.7 10.5h6.6m-6.6 0-1.8 7.2M17 18.75V19a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-.25" />
   </svg>
 );
@@ -221,6 +221,7 @@ function HistorialVentasPage() {
                     </button>
                     <button 
                         onClick={() => handleDeleteClick(venta)} 
+                        className="text-red-500 hover:text-red-700 transition-colors p-1"
                         title="Eliminar Venta"
                     >
                         <TrashIcon />
