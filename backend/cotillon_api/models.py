@@ -18,6 +18,24 @@ class Producto(models.Model):
         decimal_places=2,
         validators=[MinValueValidator(Decimal('0.01'))]
     )
+    # CAMBIO: Ahora stock es Decimal (ej. 1.500 kg)
+    stock = models.DecimalField(max_digits=10, decimal_places=3, default=0.000)
+    stock_minimo = models.DecimalField(max_digits=10, decimal_places=3, default=0.000)
+
+    def __str__(self):
+        return f"{self.nombre} (ID: {self.id})"
+    nombre = models.CharField(max_length=255)
+    codigo = models.CharField(max_length=100, unique=True, blank=True, null=True)
+    precio_costo = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2, 
+        validators=[MinValueValidator(Decimal('0.01'))]
+    )
+    precio_venta = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal('0.01'))]
+    )
     stock = models.PositiveIntegerField(default=0)
     stock_minimo = models.PositiveIntegerField(default=0)
 
@@ -51,7 +69,8 @@ class Venta(models.Model):
 class ItemVenta(models.Model):
     venta = models.ForeignKey(Venta, on_delete=models.CASCADE, related_name='items')
     producto = models.ForeignKey(Producto, on_delete=models.PROTECT)
-    cantidad = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+    # CAMBIO: Cantidad ahora acepta decimales (ej. 0.250)
+    cantidad = models.DecimalField(max_digits=10, decimal_places=3, validators=[MinValueValidator(Decimal('0.001'))])
     precio_en_el_momento = models.DecimalField(max_digits=10, decimal_places=2)
 
     def __str__(self):
