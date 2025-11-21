@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import apiClient from "../api";
 import Input from "../components/ui/Input";
-import Button from "../components/ui/Button"; // Asegúrate de importar Button
-import Modal from "../components/ui/Modal";   // Importamos nuestro Modal genérico
+import Button from "../components/ui/Button";
+import Modal from "../components/ui/Modal";
 import ProductoFormModal from "../components/ProductoFormModal";
 
 // --- Íconos SVG ---
@@ -21,31 +21,30 @@ const TrashIcon = () => (
 function RegistrarVentaPage() {
   // --- Estados Principales ---
   const [productosDisponibles, setProductosDisponibles] = useState([]);
-  const [itemsVenta, setItemsVenta] = useState([]); // El Carrito
+  const [itemsVenta, setItemsVenta] = useState([]); 
   
-  // Estados formulario principal
   const [productoSeleccionado, setProductoSeleccionado] = useState("");
   const [cantidadSeleccionada, setCantidadSeleccionada] = useState(1);
   const [terminoBusqueda, setTerminoBusqueda] = useState("");
   const [isDropdownVisible, setIsDropdownVisible] = useState(false);
 
-  // Estados mensajes
+  // NUEVO ESTADO: Método de Pago (Por defecto Efectivo)
+  const [metodoPago, setMetodoPago] = useState("EFECTIVO");
+
   const [error, setError] = useState(null);
   const [exito, setExito] = useState(null);
 
-  // Estados Modal "Crear Nuevo Producto"
+  // Modales
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [modalInitialData, setModalInitialData] = useState({});
-
-  // --- NUEVOS ESTADOS: Para Editar Cantidad en el Carrito ---
   const [isEditQtyModalOpen, setIsEditQtyModalOpen] = useState(false);
-  const [itemToEdit, setItemToEdit] = useState(null); // Guarda el objeto item que estamos editando
-  const [newQty, setNewQty] = useState(1); // La nueva cantidad temporal
+  const [itemToEdit, setItemToEdit] = useState(null);
+  const [newQty, setNewQty] = useState(1);
 
-  // --- 1. Cargar Productos ---
   const fetchProductos = async () => {
     try {
       const response = await apiClient.get("/productos/");
+      // Filtramos productos con stock > 0
       const conStock = response.data.filter(p => parseFloat(p.stock) > 0);
       setProductosDisponibles(conStock);
     } catch (error) {
@@ -53,11 +52,8 @@ function RegistrarVentaPage() {
     }
   };
 
-  useEffect(() => {
-    fetchProductos();
-  }, []);
+  useEffect(() => { fetchProductos(); }, []);
 
-  // --- 2. Lógica de Búsqueda ---
   const productosFiltrados = productosDisponibles.filter(p =>
     p.nombre.toLowerCase().includes(terminoBusqueda.toLowerCase()) ||
     (p.codigo && p.codigo.toLowerCase().includes(terminoBusqueda.toLowerCase()))
@@ -75,18 +71,15 @@ function RegistrarVentaPage() {
     setIsDropdownVisible(false);
   };
 
-  const handleBlur = () => {
-    setTimeout(() => { setIsDropdownVisible(false); }, 150);
-  };
+  const handleBlur = () => { setTimeout(() => { setIsDropdownVisible(false); }, 150); };
 
-  // --- 3. Añadir al Carrito (Lógica Principal) ---
   const handleAddItem = () => {
     if (!productoSeleccionado || cantidadSeleccionada <= 0) {
       setError("Por favor, selecciona un producto y cantidad válida.");
       return;
     }
     const prodId = parseInt(productoSeleccionado);
-    const cant = parseFloat(cantidadSeleccionada);
+    const cant = parseFloat(cantidadSeleccionada); // Soporte Decimal
 
     setError(null);
     const itemExistente = itemsVenta.find((item) => item.producto.id === prodId);
@@ -94,9 +87,7 @@ function RegistrarVentaPage() {
     if (itemExistente) {
       setItemsVenta((prevItems) =>
         prevItems.map((item) =>
-          item.producto.id === prodId
-            ? { ...item, cantidad: item.cantidad + cant }
-            : item
+          item.producto.id === prodId ? { ...item, cantidad: item.cantidad + cant } : item
         )
       );
     } else {
@@ -115,39 +106,26 @@ function RegistrarVentaPage() {
     setProductoSeleccionado("");
   };
 
-  // --- 4. NUEVA FUNCIONALIDAD: Eliminar del Carrito ---
   const handleRemoveItem = (productoId) => {
-    const nuevosItems = itemsVenta.filter(item => item.producto.id !== productoId);
-    setItemsVenta(nuevosItems);
+    setItemsVenta(itemsVenta.filter(item => item.producto.id !== productoId));
   };
 
-  // --- 5. NUEVA FUNCIONALIDAD: Editar Cantidad en Carrito ---
   const handleOpenEditQty = (item) => {
     setItemToEdit(item);
-    setNewQty(item.cantidad); // Pre-llenamos con la cantidad actual
+    setNewQty(item.cantidad);
     setIsEditQtyModalOpen(true);
   };
 
   const handleSaveNewQty = (e) => {
     e.preventDefault();
-    if (newQty <= 0) {
-        alert("La cantidad debe ser mayor a 0");
-        return;
-    }
-    
-    // Actualizamos el array de items
+    if (newQty <= 0) return;
     setItemsVenta((prevItems) => 
-        prevItems.map(item => 
-            item.producto.id === itemToEdit.producto.id 
-            ? { ...item, cantidad: parseFloat(newQty) } 
-            : item
-        )
+        prevItems.map(item => item.producto.id === itemToEdit.producto.id ? { ...item, cantidad: parseFloat(newQty) } : item)
     );
     setIsEditQtyModalOpen(false);
     setItemToEdit(null);
   };
 
-  // --- 6. Confirmar Venta ---
   const handleRegistrarVenta = async () => {
     if (itemsVenta.length === 0) {
       setError("No puedes registrar una venta vacía.");
@@ -155,17 +133,21 @@ function RegistrarVentaPage() {
     }
     setError(null);
     setExito(null);
+    
     const payload = {
+      metodo_pago: metodoPago, // <-- ENVIAMOS EL MÉTODO DE PAGO
       items: itemsVenta.map((item) => ({
         producto: item.producto.id,
         cantidad: item.cantidad,
       })),
     };
+
     try {
       const response = await apiClient.post("/ventas/", payload);
       setExito(`¡Venta #${response.data.id} registrada! Total: $${response.data.total_venta}`);
-      setItemsVenta([]);
-      fetchProductos();
+      setItemsVenta([]); // Limpiar carrito
+      setMetodoPago("EFECTIVO"); // Resetear pago
+      fetchProductos(); // Actualizar stock
     } catch (error) {
       console.error("Error venta:", error.response?.data);
       if (error.response?.data?.detail) {
@@ -181,11 +163,8 @@ function RegistrarVentaPage() {
     0
   );
 
-  // Modal de Creación Rápida
   const handleAbrirModalCrear = () => {
-    setModalInitialData({
-      nombre: terminoBusqueda, codigo: "", precio_costo: "", precio_venta: "", stock: 0, stock_minimo: 0,
-    });
+    setModalInitialData({ nombre: terminoBusqueda, codigo: "", precio_costo: "", precio_venta: "", stock: 0, stock_minimo: 0 });
     setIsCreateModalOpen(true);
     setIsDropdownVisible(false);
   };
@@ -193,14 +172,11 @@ function RegistrarVentaPage() {
   const handleModalSaveSuccess = (productoGuardado) => {
     setIsCreateModalOpen(false);
     fetchProductos();
-    setItemsVenta((prevItems) => [
-      ...prevItems,
-      {
+    setItemsVenta((prevItems) => [...prevItems, {
         producto: { id: productoGuardado.id, nombre: productoGuardado.nombre },
         cantidad: 1,
         precio_en_el_momento: productoGuardado.precio_venta,
-      },
-    ]);
+      }]);
     setTerminoBusqueda("");
   };
 
@@ -212,9 +188,10 @@ function RegistrarVentaPage() {
       {exito && <div className="mb-4 bg-green-100 border border-green-400 text-green-700 p-3 rounded">{exito}</div>}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        {/* Columna Izquierda: Formulario */}
+        {/* Columna Izquierda */}
         <div className="md:col-span-1 bg-white p-6 rounded-lg shadow-md h-fit">
           <h2 className="text-xl font-semibold mb-4">1. Añadir Productos</h2>
+          
           <div className="mb-4 relative">
             <Input
               label="Buscar Producto"
@@ -231,50 +208,32 @@ function RegistrarVentaPage() {
               <div className="absolute z-10 w-full bg-white border border-gray-300 rounded-md mt-1 max-h-60 overflow-y-auto shadow-lg">
                 {productosFiltrados.length > 0 ? (
                   productosFiltrados.map((p) => (
-                    <div 
-                      key={p.id} 
-                      className="p-3 hover:bg-blue-100 cursor-pointer"
-                      onMouseDown={() => handleProductoClick(p)} 
-                    >
+                    <div key={p.id} className="p-3 hover:bg-blue-100 cursor-pointer" onMouseDown={() => handleProductoClick(p)}>
                       <p className="font-semibold">{p.nombre}</p>
-                      <p className="text-sm text-gray-600">
-                        Código: {p.codigo || 'N/A'} - Stock: {parseFloat(p.stock)}
-                      </p>
+                      <p className="text-sm text-gray-600">Código: {p.codigo || 'N/A'} - Stock: {parseFloat(p.stock)}</p>
                     </div>
                   ))
                 ) : (
-                  <div 
-                    className="p-3 text-gray-500 cursor-pointer hover:bg-green-100"
-                    onMouseDown={handleAbrirModalCrear}
-                  >
+                  <div className="p-3 text-gray-500 cursor-pointer hover:bg-green-100" onMouseDown={handleAbrirModalCrear}>
                     No se encontró. <span className="font-semibold text-green-600">Crear "{terminoBusqueda}"...</span>
                   </div>
                 )}
               </div>
             )}
           </div>
+
           <div className="mb-4">
-            <Input
-              label="Cantidad"
-              id="cantidad"
-              type="number"
-              min="0.001"
-              step="0.001"
-              value={cantidadSeleccionada}
-              onChange={(e) => setCantidadSeleccionada(e.target.value)}
-            />
+            <Input label="Cantidad" id="cantidad" type="number" min="0.001" step="0.001" value={cantidadSeleccionada} onChange={(e) => setCantidadSeleccionada(e.target.value)} />
           </div>
-          <button
-            onClick={handleAddItem}
-            className="w-full bg-blue-600 text-white p-2 rounded-md font-semibold hover:bg-blue-700 transition-colors"
-          >
+
+          <button onClick={handleAddItem} className="w-full bg-blue-600 text-white p-2 rounded-md font-semibold hover:bg-blue-700 transition-colors">
             Añadir al Carrito
           </button>
         </div>
 
-        {/* Columna Derecha: Carrito */}
+        {/* Columna Derecha */}
         <div className="md:col-span-2 bg-white p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold mb-4">2. Resumen de Venta (Carrito)</h2>
+          <h2 className="text-xl font-semibold mb-4">2. Resumen de Venta</h2>
           <div className="mb-4 min-h-[150px]">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -293,83 +252,45 @@ function RegistrarVentaPage() {
                     <td className="px-4 py-3 text-sm font-bold text-gray-900">{parseFloat(item.cantidad)}</td>
                     <td className="px-4 py-3 text-sm text-gray-500">${item.precio_en_el_momento}</td>
                     <td className="px-4 py-3 text-sm text-gray-900 font-medium">${(item.cantidad * item.precio_en_el_momento).toFixed(2)}</td>
-                    
-                    {/* COLUMNA DE ACCIONES */}
                     <td className="px-4 py-3 text-sm flex gap-2">
-                        {/* Editar Cantidad */}
-                        <button 
-                            onClick={() => handleOpenEditQty(item)}
-                            className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
-                            title="Editar cantidad"
-                        >
-                            <PencilIcon />
-                        </button>
-                        {/* Eliminar del Carrito */}
-                        <button 
-                            onClick={() => handleRemoveItem(item.producto.id)}
-                            className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
-                            title="Quitar del carrito"
-                        >
-                            <TrashIcon />
-                        </button>
+                        <button onClick={() => handleOpenEditQty(item)} className="text-blue-600 hover:text-blue-800 p-1"><PencilIcon /></button>
+                        <button onClick={() => handleRemoveItem(item.producto.id)} className="text-red-600 hover:text-red-800 p-1"><TrashIcon /></button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            {itemsVenta.length === 0 && (
-              <p className="text-gray-500 text-center py-10">El carrito está vacío.</p>
-            )}
+            {itemsVenta.length === 0 && <p className="text-gray-500 text-center py-10">El carrito está vacío.</p>}
           </div>
+          
           <div className="border-t pt-4">
-            <div className="text-2xl font-bold text-right mb-4 text-gray-800">
-              Total: ${totalVenta.toFixed(2)}
+            <div className="flex justify-between items-center mb-4">
+                {/* --- SELECTOR DE MÉTODO DE PAGO --- */}
+                <div className="flex items-center gap-2 bg-gray-100 p-2 rounded-md">
+                    <label className="text-sm font-bold text-gray-700">Método de Pago:</label>
+                    <select 
+                        value={metodoPago}
+                        onChange={(e) => setMetodoPago(e.target.value)}
+                        className="p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 bg-white cursor-pointer"
+                    >
+                        <option value="EFECTIVO">💵 Efectivo</option>
+                        <option value="TRANSFERENCIA">💳 Transferencia</option>
+                    </select>
+                </div>
+                
+                <div className="text-2xl font-bold text-gray-800">Total: ${totalVenta.toFixed(2)}</div>
             </div>
-            <button
-              onClick={handleRegistrarVenta}
-              disabled={itemsVenta.length === 0}
-              className={`w-full text-white p-3 rounded-md font-bold text-lg transition-colors ${
-                itemsVenta.length === 0 ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"
-              }`}
-            >
+            
+            <button onClick={handleRegistrarVenta} disabled={itemsVenta.length === 0} className={`w-full text-white p-3 rounded-md font-bold text-lg transition-colors ${itemsVenta.length === 0 ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}>
               Confirmar Venta
             </button>
           </div>
         </div>
       </div>
 
-      {/* Modal para Crear Producto Rápido */}
-      <ProductoFormModal
-        isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
-        mode="create"
-        initialData={modalInitialData}
-        onSaveSuccess={handleModalSaveSuccess}
-      />
-
-      {/* Modal para Editar Cantidad */}
-      <Modal
-        isOpen={isEditQtyModalOpen}
-        onClose={() => setIsEditQtyModalOpen(false)}
-        title={`Editar cantidad: ${itemToEdit?.producto.nombre}`}
-        footer={
-            <>
-                <Button variant="secondary" onClick={() => setIsEditQtyModalOpen(false)}>Cancelar</Button>
-                <Button variant="primary" onClick={handleSaveNewQty}>Actualizar</Button>
-            </>
-        }
-      >
-          <form onSubmit={handleSaveNewQty}>
-              <Input 
-                label="Nueva Cantidad"
-                type="number"
-                min="0.001"
-                step="0.001"
-                value={newQty}
-                onChange={(e) => setNewQty(e.target.value)}
-                autoFocus
-              />
-          </form>
+      <ProductoFormModal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} mode="create" initialData={modalInitialData} onSaveSuccess={handleModalSaveSuccess} />
+      <Modal isOpen={isEditQtyModalOpen} onClose={() => setIsEditQtyModalOpen(false)} title={`Editar cantidad`} footer={<><Button variant="secondary" onClick={() => setIsEditQtyModalOpen(false)}>Cancelar</Button><Button variant="primary" onClick={handleSaveNewQty}>Actualizar</Button></>}>
+          <form onSubmit={handleSaveNewQty}><Input label="Nueva Cantidad" type="number" min="0.001" step="0.001" value={newQty} onChange={(e) => setNewQty(e.target.value)} autoFocus /></form>
       </Modal>
     </div>
   );

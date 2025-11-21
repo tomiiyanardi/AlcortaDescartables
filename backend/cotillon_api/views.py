@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from django.db.models import Sum, F
 from django.utils import timezone
 from datetime import timedelta, datetime
-from django.db import transaction # <-- Importación necesaria para el borrado atómico
+from django.db import transaction
 
 from .models import Producto, Venta, ItemVenta
 from . import services 
@@ -16,30 +16,30 @@ from .serializers import (
     ItemVentaSerializer
 )
 
+from rest_framework import serializers
+
 # Decoradores de CSRF
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
 
 # -----------------------------------------------------------------------------
-# ViewSet para Producto
+# ViewSet para Producto (CRUD completo + Añadir Stock)
 # -----------------------------------------------------------------------------
 class ProductoViewSet(viewsets.ModelViewSet):
     queryset = Producto.objects.all().order_by('nombre')
     serializer_class = ProductoSerializer
 
-    # Esto fuerza a Django a enviar la cookie CSRF
     @method_decorator(ensure_csrf_cookie, name='dispatch')
     def dispatch(self, *args, **kwargs):
         return super().dispatch(*args, **kwargs)
 
-    # Acción para añadir stock (usado en Registrar Compra)
     @action(detail=True, methods=['post'], url_path='add-stock')
     def add_stock(self, request, pk=None):
         try:
             cantidad = request.data.get('cantidad', 0)
             if not isinstance(cantidad, (int, float, str)) or float(cantidad) <= 0:
                  raise ValueError("La cantidad debe ser un número positivo.")
-            cantidad = Decimal(str(cantidad))
+            cantidad = float(cantidad)
         except (ValueError, TypeError):
             return Response(
                 {"detail": "Por favor, provea una 'cantidad' numérica válida."},
@@ -47,26 +47,21 @@ class ProductoViewSet(viewsets.ModelViewSet):
             )
 
         producto = self.get_object()
-        
-        # Actualización atómica
         producto.stock = F('stock') + cantidad
         producto.save()
-        
         producto.refresh_from_db()
         
         serializer = self.get_serializer(producto)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 # -----------------------------------------------------------------------------
-# ViewSet para Venta (con Lógica de Edición y Eliminación)
+# ViewSet para Venta (CRUD + Dashboard)
 # -----------------------------------------------------------------------------
 class VentaViewSet(viewsets.ModelViewSet):
     queryset = Venta.objects.all().order_by('-fecha')
     serializer_class = VentaSerializer
 
-    # CAMBIO: Habilitamos VentaCreateSerializer para Edición (PUT/PATCH)
     def get_serializer_class(self):
-        # Usamos el serializer de "escritura" para crear Y actualizar
         if self.action in ['create', 'update', 'partial_update']:
             return VentaCreateSerializer
         return VentaSerializer
@@ -90,6 +85,7 @@ class VentaViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         
         try:
+            # Aquí pasamos el validated_data que ya incluye 'metodo_pago' gracias al serializer
             venta_creada, _ = services.registrar_venta(serializer.validated_data)
             respuesta_serializer = VentaSerializer(venta_creada)
             return Response(respuesta_serializer.data, status=status.HTTP_201_CREATED)
@@ -99,27 +95,24 @@ class VentaViewSet(viewsets.ModelViewSet):
                 detail = e.detail
             except AttributeError:
                 detail = str(e)
-            
-            return Response(
-                {"detail": detail}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"detail": detail}, status=status.HTTP_400_BAD_REQUEST)
 
-    # --- NUEVO MÉTODO: Eliminar Venta (DELETE) ---
-    @transaction.atomic
-    def perform_destroy(self, instance):
-        """Cancela la venta y revierte el stock de todos los productos."""
+    # --- MÉTODO CORREGIDO: Eliminar Venta (DELETE) y Devolver Stock ---
+    def destroy(self, request, *args, **kwargs):
+        venta = self.get_object()
         
-        # 1. Revertir Stock
-        for item in instance.items.all():
-            producto = item.producto
-            producto.stock += item.cantidad 
-            producto.save()
+        with transaction.atomic():
+            # 1. Revertir Stock
+            for item in venta.items.all():
+                producto = item.producto
+                producto.stock += item.cantidad 
+                producto.save()
 
-        # 2. Eliminar la venta
-        instance.delete()
-    # ---------------------------------------------
-
+            # 2. Eliminar la venta
+            venta.delete()
+        
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    # ----------------------------------------------------------------
 
     @action(detail=False, methods=['get'], url_path='dashboard-data')
     def dashboard_data(self, request):
@@ -135,10 +128,11 @@ class VentaViewSet(viewsets.ModelViewSet):
                 start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
                 end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
             except ValueError:
-                return Response({"detail": "Formato de fecha inválido. Usar YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"detail": "Formato de fecha inválido."}, status=status.HTTP_400_BAD_REQUEST)
 
         ventas_filtradas = Venta.objects.filter(fecha__date__range=[start_date, end_date])
 
+        # --- Gráfico ---
         sales_by_day_dict = {}
         delta = end_date - start_date
         for i in range(delta.days + 1):
@@ -154,12 +148,24 @@ class VentaViewSet(viewsets.ModelViewSet):
 
         sales_by_day = [{'date': date, 'total': total} for date, total in sales_by_day_dict.items()]
 
+        # --- Cálculos Financieros ---
         total_vendido = 0
         total_costo = 0
+        
+        # Variables para el desglose por método de pago
+        total_efectivo = 0
+        total_transferencia = 0
         
         ventas_optimizadas = ventas_filtradas.prefetch_related('items__producto')
         
         for venta in ventas_optimizadas:
+            # Sumar al total por método
+            if venta.metodo_pago == 'EFECTIVO':
+                total_efectivo += venta.total_venta
+            elif venta.metodo_pago == 'TRANSFERENCIA':
+                total_transferencia += venta.total_venta
+            
+            # Sumar costo y venta total (item por item)
             for item in venta.items.all():
                 total_vendido += item.precio_en_el_momento * item.cantidad
                 total_costo += item.producto.precio_costo * item.cantidad
@@ -177,12 +183,15 @@ class VentaViewSet(viewsets.ModelViewSet):
             'rango_total_costo': total_costo,
             'rango_ganancia_neta': ganancia_neta,
             'ventas_por_dia': sales_by_day,
+            # Nuevos datos para el frontend
+            'total_efectivo': total_efectivo,
+            'total_transferencia': total_transferencia,
         }
         return Response(data, status=status.HTTP_200_OK)
 
 
 # -----------------------------------------------------------------------------
-# ViewSet para ItemVenta (Solo lectura, sin cambios)
+# ViewSet para ItemVenta
 # -----------------------------------------------------------------------------
 class ItemVentaViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = ItemVenta.objects.all()
