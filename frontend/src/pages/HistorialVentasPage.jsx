@@ -2,8 +2,7 @@ import { useState, useEffect } from "react";
 import apiClient from "../api";
 import Input from "../components/ui/Input";
 
-// --- IMPORTACIONES CORREGIDAS ---
-// Usamos el nombre correcto del archivo que creamos antes
+// --- IMPORTACIONES DE MODALES ---
 import VentaEditModal from "../components/VentaEditModal"; 
 import DeleteConfirmationModal from "../components/ui/DeleteConfirmationModal"; 
 
@@ -15,7 +14,7 @@ const PencilIcon = () => (
 );
 
 const TrashIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-red-600 hover:text-red-800">
     <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0-.97-4.277M9 7.114V5.572m4.102.162L17 4m0 0l-4.102 2.162M12 4v16M8.7 10.5h6.6m-6.6 0-1.8 7.2M17 18.75V19a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-.25" />
   </svg>
 );
@@ -172,6 +171,7 @@ function HistorialVentasPage() {
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID Venta</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha y Hora</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Método Pago</th> {/* NUEVA COLUMNA */}
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Items Vendidos</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Venta</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
@@ -181,21 +181,36 @@ function HistorialVentasPage() {
             
             {loading ? (
               <tr>
-                <td colSpan="5" className="text-center py-10 text-gray-500">Cargando historial...</td>
+                <td colSpan="6" className="text-center py-10 text-gray-500">Cargando historial...</td>
               </tr>
             ) : ventas.length === 0 ? (
               <tr>
-                <td colSpan="5" className="text-center py-10 text-gray-500">No se encontraron ventas en este período.</td>
+                <td colSpan="6" className="text-center py-10 text-gray-500">No se encontraron ventas en este período.</td>
               </tr>
             ) : (
               ventas.map((venta) => (
                 <tr key={venta.id} className="hover:bg-gray-50">
+                  
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     #{venta.id}
                   </td>
+                  
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {formatDateTime(venta.fecha)}
                   </td>
+
+                  {/* --- NUEVA CELDA DE MÉTODO DE PAGO --- */}
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                        venta.metodo_pago === 'EFECTIVO' 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-purple-100 text-purple-800'
+                    }`}>
+                        {venta.metodo_pago}
+                    </span>
+                  </td>
+                  {/* -------------------------------------- */}
+                  
                   <td className="px-6 py-4 text-sm text-gray-900">
                     <ul className="list-disc list-inside space-y-1">
                       {venta.items.map((item) => (
@@ -206,6 +221,7 @@ function HistorialVentasPage() {
                       ))}
                     </ul>
                   </td>
+                  
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
                     ${parseFloat(venta.total_venta).toFixed(2)}
                   </td>
@@ -221,7 +237,6 @@ function HistorialVentasPage() {
                     </button>
                     <button 
                         onClick={() => handleDeleteClick(venta)} 
-                        className="text-red-500 hover:text-red-700 transition-colors p-1"
                         title="Eliminar Venta"
                     >
                         <TrashIcon />
