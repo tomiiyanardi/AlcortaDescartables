@@ -112,6 +112,8 @@ function HistorialVentasPage() {
   // --- Cálculo de Totales ---
   const totalFiltrado = ventas.reduce((acc, venta) => acc + parseFloat(venta.total_venta), 0);
 
+  //Comentario apra comitear
+  
   // Función para formatear la fecha
   const formatDateTime = (dateTimeString) => {
     const date = new Date(dateTimeString);
@@ -270,5 +272,7 @@ function HistorialVentasPage() {
     </div>
   );
 }
+
+
 
 export default HistorialVentasPage;
