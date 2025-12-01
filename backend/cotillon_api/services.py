@@ -7,7 +7,18 @@ from .models import Venta, ItemVenta, Producto
 def registrar_venta(validated_data):
     items_data = validated_data.pop('items')
     
-    venta = Venta.objects.create(total_venta=Decimal('0.00'))
+    # --- CORRECCIÓN AQUÍ ---
+    # Extraemos el método de pago de los datos validados. 
+    # Si no viene (por alguna razón), usamos 'EFECTIVO' por defecto.
+    metodo_pago = validated_data.get('metodo_pago', 'EFECTIVO')
+    
+    # Creamos la venta incluyendo el método de pago
+    venta = Venta.objects.create(
+        total_venta=Decimal('0.00'),
+        metodo_pago=metodo_pago 
+    )
+    # -----------------------
+
     total_venta_calculado = Decimal('0.00')
 
     productos_a_actualizar = []
@@ -41,13 +52,21 @@ def registrar_venta(validated_data):
     venta.total_venta = total_venta_calculado
     venta.save()
     
+    # Devolvemos los items a validated_data por si el serializer los necesita
     validated_data['items'] = items_data
     return venta, validated_data
 
-# --- NUEVO SERVICIO PARA EDICIÓN DE VENTA ---
+# --- SERVICIO PARA EDICIÓN DE VENTA ---
+# Nota: Este servicio actualmente no se usa directamente si estás usando
+# la lógica de update() en el Serializer, pero es bueno mantenerlo actualizado
+# o sincronizado por si decides usarlo en el futuro.
 @transaction.atomic
 def actualizar_venta(venta_instance, validated_data):
     items_data = validated_data.pop('items')
+    
+    # Actualizamos método de pago si viene en los datos
+    if 'metodo_pago' in validated_data:
+        venta_instance.metodo_pago = validated_data['metodo_pago']
 
     # 1. REVERTIR STOCK (Devolver productos al estante)
     current_items = venta_instance.items.all()
@@ -56,13 +75,13 @@ def actualizar_venta(venta_instance, validated_data):
         producto.stock += item.cantidad 
         producto.save()
     
-    # 2. Borrar items viejos (usamos delete() fuera del loop)
+    # 2. Borrar items viejos
     current_items.delete()
 
-    # 3. APLICAR NUEVA VENTA (Lógica idéntica a crear)
+    # 3. APLICAR NUEVA VENTA
     total_venta_calculado = Decimal('0.00')
     items_a_crear = []
-    productos_a_actualizar = [] # Lista para el bulk_update
+    productos_a_actualizar = [] 
 
     for item_data in items_data:
         producto = item_data['producto']
@@ -85,7 +104,6 @@ def actualizar_venta(venta_instance, validated_data):
             precio_en_el_momento=precio_en_el_momento
         ))
 
-    # Ejecución masiva y segura
     ItemVenta.objects.bulk_create(items_a_crear)
     Producto.objects.bulk_update(productos_a_actualizar, ['stock'])
     
